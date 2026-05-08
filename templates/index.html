@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ThumbGen — Animated Thumbnail Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #222222;
+    --border-bright: #333333;
+    --accent: #e8ff00;
+    --accent2: #ff6b35;
+    --text: #f0f0f0;
+    --muted: #555555;
+    --success: #39ff14;
+    --error: #ff3333;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,0,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,0,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 56px;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tag::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-family: var(--sans);
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -2px;
+    color: var(--text);
+  }
+
+  h1 span {
+    color: var(--accent);
+  }
+
+  .subtitle {
+    margin-top: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  /* Drop Zone */
+  .dropzone {
+    border: 1px solid var(--border-bright);
+    background: var(--surface);
+    padding: 64px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  .dropzone::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 12px; height: 12px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+  }
+  .dropzone::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 12px; height: 12px;
+    border-bottom: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+  }
+
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: #151500;
+  }
+
+  .dropzone.drag-over {
+    transform: scale(1.01);
+  }
+
+  .drop-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 20px;
+    border: 1px solid var(--border-bright);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: var(--accent);
+    transition: all 0.2s;
+  }
+
+  .dropzone:hover .drop-icon {
+    border-color: var(--accent);
+    background: rgba(232,255,0,0.05);
+  }
+
+  .drop-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+
+  .drop-sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .drop-sub strong {
+    color: var(--accent);
+  }
+
+  #fileInput { display: none; }
+
+  /* File Queue */
+  #fileQueue {
+    display: none;
+    margin-bottom: 24px;
+  }
+
+  .queue-header {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #clearQueue {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    transition: color 0.2s;
+  }
+
+  #clearQueue:hover { color: var(--error); }
+
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    margin-bottom: 4px;
+    font-family: var(--mono);
+    font-size: 12px;
+    transition: border-color 0.2s;
+  }
+
+  .file-item:hover { border-color: var(--border-bright); }
+
+  .file-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+  }
+
+  .file-size {
+    color: var(--muted);
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .file-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+    transition: color 0.2s;
+  }
+
+  .file-remove:hover { color: var(--error); }
+
+  /* Action button */
+  #processBtn {
+    display: none;
+    width: 100%;
+    padding: 18px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #processBtn:hover {
+    background: #fff;
+    transform: translateY(-1px);
+  }
+
+  #processBtn:active { transform: translateY(0); }
+
+  #processBtn:disabled {
+    background: var(--border-bright);
+    color: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Progress */
+  #progressSection {
+    display: none;
+    margin-bottom: 32px;
+  }
+
+  .progress-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .progress-track {
+    height: 2px;
+    background: var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.4s ease;
+    position: relative;
+  }
+
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: -4px;
+    width: 2px; height: 10px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .progress-log {
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-height: 18px;
+  }
+
+  /* Results */
+  #results { display: none; }
+
+  .results-header {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-card {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: border-color 0.2s;
+  }
+
+  .result-card:hover { border-color: var(--border-bright); }
+
+  .result-card.success { border-left: 2px solid var(--success); }
+  .result-card.error { border-left: 2px solid var(--error); }
+
+  .result-preview {
+    width: 80px;
+    height: 45px;
+    object-fit: cover;
+    display: block;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .result-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .result-name {
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+
+  .result-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .result-meta .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-left: 8px;
+  }
+
+  .badge-scene { background: rgba(232,255,0,0.1); color: var(--accent); }
+  .badge-spaced { background: rgba(255,107,53,0.1); color: var(--accent2); }
+
+  .result-error {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--error);
+  }
+
+  .dl-btn {
+    padding: 8px 16px;
+    background: none;
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .dl-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Download all */
+  #downloadAll {
+    display: none;
+    margin-top: 16px;
+    padding: 14px;
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  #downloadAll:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Reset */
+  #resetBtn {
+    display: none;
+    margin-top: 8px;
+    padding: 14px;
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  #resetBtn:hover { color: var(--text); border-color: var(--border-bright); }
+
+  /* Footer */
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: gap;
+  }
+
+  .footer-left {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+
+  .footer-right {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .footer-right a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  /* Animations */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .processing-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+    margin-right: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="tag">FFmpeg · WebP · Bulk</div>
+    <h1>THUMB<span>GEN</span></h1>
+    <p class="subtitle">// animated thumbnail generator — drop videos, get .webp</p>
+  </header>
+
+  <!-- Drop Zone -->
+  <div class="dropzone" id="dropzone">
+    <div class="drop-icon">▼</div>
+    <div class="drop-title">Drop videos here</div>
+    <p class="drop-sub">or click to browse &nbsp;·&nbsp; <strong>bulk upload supported</strong></p>
+    <p class="drop-sub" style="margin-top:8px">MP4 · MOV · MKV · AVI · WEBM</p>
+  </div>
+  <input type="file" id="fileInput" accept=".mp4,.mov,.mkv,.avi,.webm" multiple>
+
+  <!-- File Queue -->
+  <div id="fileQueue">
+    <div class="queue-header">
+      <span id="queueCount">0 files queued</span>
+      <button id="clearQueue">Clear all</button>
+    </div>
+    <div id="queueList"></div>
+  </div>
+
+  <!-- Process Button -->
+  <button id="processBtn">⚡ Generate Thumbnails</button>
+
+  <!-- Progress -->
+  <div id="progressSection">
+    <div class="progress-label">
+      <span><span class="processing-dot"></span>Processing</span>
+      <span id="progressText">0 / 0</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-log" id="progressLog">Uploading files...</div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="results-header" id="resultsHeader">Results</div>
+    <div id="resultsList"></div>
+    <button id="downloadAll">⬇ Download All as ZIP</button>
+    <button id="resetBtn">↺ Process More Videos</button>
+  </div>
+
+  <footer>
+    <div class="footer-left">OUTPUT: animated .webp · 320×180 · loop forever</div>
+    <div class="footer-right">based on <a href="https://gist.github.com/Voldrix/84a01b602e5d6c53c2b67e156bf26a10" target="_blank">gist by Voldrix</a></div>
+  </footer>
+
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileQueue = document.getElementById('fileQueue');
+const queueList = document.getElementById('queueList');
+const queueCount = document.getElementById('queueCount');
+const clearQueueBtn = document.getElementById('clearQueue');
+const processBtn = document.getElementById('processBtn');
+const progressSection = document.getElementById('progressSection');
+const progressFill = document.getElementById('progressFill');
+const progressText = document.getElementById('progressText');
+const progressLog = document.getElementById('progressLog');
+const resultsDiv = document.getElementById('results');
+const resultsList = document.getElementById('resultsList');
+const resultsHeader = document.getElementById('resultsHeader');
+const downloadAllBtn = document.getElementById('downloadAll');
+const resetBtn = document.getElementById('resetBtn');
+
+let selectedFiles = [];
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function updateQueue() {
+  queueList.innerHTML = '';
+  selectedFiles.forEach((file, i) => {
+    const item = document.createElement('div');
+    item.className = 'file-item';
+    item.innerHTML = `
+      <div class="file-name">${file.name}</div>
+      <div class="file-size">${formatSize(file.size)}</div>
+      <button class="file-remove" data-index="${i}">×</button>
+    `;
+    queueList.appendChild(item);
+  });
+
+  queueCount.textContent = `${selectedFiles.length} file${selectedFiles.length !== 1 ? 's' : ''} queued`;
+
+  if (selectedFiles.length > 0) {
+    fileQueue.style.display = 'block';
+    processBtn.style.display = 'block';
+  } else {
+    fileQueue.style.display = 'none';
+    processBtn.style.display = 'none';
+  }
+}
+
+queueList.addEventListener('click', e => {
+  if (e.target.classList.contains('file-remove')) {
+    const idx = parseInt(e.target.dataset.index);
+    selectedFiles.splice(idx, 1);
+    updateQueue();
+  }
+});
+
+clearQueueBtn.addEventListener('click', () => {
+  selectedFiles = [];
+  updateQueue();
+});
+
+function addFiles(files) {
+  for (const f of files) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (['mp4','mov','mkv','avi','webm'].includes(ext)) {
+      // Avoid duplicates by name+size
+      const exists = selectedFiles.some(x => x.name === f.name && x.size === f.size);
+      if (!exists) selectedFiles.push(f);
+    }
+  }
+  updateQueue();
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => addFiles(e.target.files));
+
+dropzone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropzone.classList.add('drag-over');
+});
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
+});
+
+// Process
+processBtn.addEventListener('click', async () => {
+  if (!selectedFiles.length) return;
+
+  // Switch UI
+  dropzone.style.display = 'none';
+  fileQueue.style.display = 'none';
+  processBtn.style.display = 'none';
+  progressSection.style.display = 'block';
+  resultsDiv.style.display = 'none';
+
+  const BATCH_SIZE = 3; // process 3 at a time to avoid timeout
+  const total = selectedFiles.length;
+  let done = 0;
+  const allResults = [];
+
+  function setProgress(pct, log) {
+    progressFill.style.width = pct + '%';
+    progressText.textContent = `${done} / ${total}`;
+    if (log) progressLog.textContent = log;
+  }
+
+  // Process in batches
+  for (let i = 0; i < selectedFiles.length; i += BATCH_SIZE) {
+    const batch = selectedFiles.slice(i, i + BATCH_SIZE);
+    const fd = new FormData();
+    batch.forEach(f => fd.append('files', f));
+
+    setProgress(Math.round((done / total) * 90), `Processing: ${batch.map(f => f.name).join(', ')}`);
+
+    try {
+      const res = await fetch('/process', { method: 'POST', body: fd });
+      const data = await res.json();
+      done += batch.length;
+      setProgress(Math.round((done / total) * 90), `Done: ${done}/${total}`);
+      allResults.push(...(data.results || []));
+    } catch (err) {
+      batch.forEach(f => allResults.push({ filename: f.name, success: false, error: 'Upload failed' }));
+      done += batch.length;
+    }
+  }
+
+  setProgress(100, 'Complete!');
+
+  // Show results
+  setTimeout(() => {
+    progressSection.style.display = 'none';
+    showResults(allResults);
+  }, 600);
+});
+
+function showResults(results) {
+  resultsList.innerHTML = '';
+  let successCount = 0;
+
+  results.forEach(r => {
+    const card = document.createElement('div');
+
+    if (r.success) {
+      successCount++;
+      const methodBadge = r.method === 'scene-detection'
+        ? '<span class="badge badge-scene">scene</span>'
+        : '<span class="badge badge-spaced">spaced</span>';
+
+      card.className = 'result-card success';
+      card.innerHTML = `
+        <img class="result-preview" src="/download/${r.output_id}" alt="preview" loading="lazy">
+        <div class="result-info">
+          <div class="result-name">${r.filename}</div>
+          <div class="result-meta">${r.size_kb} KB ${methodBadge}</div>
+        </div>
+        <a class="dl-btn" href="/download/${r.output_id}" download="${r.filename.replace(/\.[^.]+$/, '')}.webp">
+          ⬇ Download
+        </a>
+      `;
+    } else {
+      card.className = 'result-card error';
+      card.innerHTML = `
+        <div class="result-info">
+          <div class="result-name">${r.filename}</div>
+          <div class="result-error">✕ ${r.error}</div>
+        </div>
+      `;
+    }
+    resultsList.appendChild(card);
+  });
+
+  const failCount = results.length - successCount;
+  resultsHeader.textContent = `${successCount} generated${failCount > 0 ? ` · ${failCount} failed` : ''}`;
+
+  resultsDiv.style.display = 'block';
+  resetBtn.style.display = 'block';
+
+  if (successCount > 1) downloadAllBtn.style.display = 'block';
+}
+
+// Download all — sequential download
+downloadAllBtn.addEventListener('click', () => {
+  const links = resultsList.querySelectorAll('.dl-btn');
+  links.forEach((link, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = link.href;
+      a.download = link.download;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, i * 500);
+  });
+});
+
+// Reset
+resetBtn.addEventListener('click', () => {
+  selectedFiles = [];
+  fileInput.value = '';
+  dropzone.style.display = 'block';
+  fileQueue.style.display = 'none';
+  processBtn.style.display = 'none';
+  progressSection.style.display = 'none';
+  resultsDiv.style.display = 'none';
+  downloadAllBtn.style.display = 'none';
+  resetBtn.style.display = 'none';
+  progressFill.style.width = '0%';
+  updateQueue();
+});
+</script>
+</body>
+</html>
